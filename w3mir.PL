@@ -66,7 +66,7 @@ sub read_makefile {
 }
 
 __END__
-#!/local/bin/perl5 -w
+#!/usr/bin/perl -w
 # Perl 5.002 or later.  w3mir is mostly tested with perl 5.004
 #
 use lib '/hom/janl/lib/perl';
@@ -238,6 +238,7 @@ use lib '/hom/janl/lib/perl';
 #   janl 13/04/99 -- Add initial referer to root urls in batch mode.
 #   janl 15/01/00 -- Remove some leftover print statements
 #                 -- Fix also-queue problem as suggested by Sven Koch
+#   janl 04/02/01 -- Use epath instead of path quite often -> 1.0.10
 #
 # Variable name discipline:
 # - remote, umodified URL.  Variables prefixed 'rum_'
@@ -325,8 +326,8 @@ my $fixopen=0;			# Fixup files open?
 my $indexname='index.html';
 
 my $VERSION;
-$VERSION='1.0.9';
-$w3http::agent = my $w3mir_agent = "w3mir/$VERSION-2000-01-15";
+$VERSION='1.0.10';
+$w3http::agent = my $w3mir_agent = "w3mir/$VERSION-2001-01-20";
 my $iref='';			# Initial referer.  Must evaluate to false
 
 # Derived settings	
@@ -478,6 +479,7 @@ die "w3mir: If you want to control a cache, use a proxy server!\n"
 my $full_rules=$scope_prefix.$scope_fetch.$scope_ignore.$scope_postfix;
 # warn "Scope rules:\n-------------\n$full_rules\n---------------\n";
 eval $full_rules;
+die "$@" if $@;
 
 die "w3mir: Program generated rules did not compile.\nPlease report to w3mir-core\@usit.uio.no.  The code is:\n----\n".
   $full_rules."\n----\n"
@@ -486,6 +488,7 @@ die "w3mir: Program generated rules did not compile.\nPlease report to w3mir-cor
 $full_rules=$rule_prefix.$rule_text.$rule_postfix;
 # warn "Fetch rules:\n-------------\n$full_rules\n---------------\n";
 eval $full_rules;
+die "$@!" if $@;
 
 # - The user specified rum tests
 die "w3mir: Ignore/Fetch rules did not compile.\nPlease report to w3mir-core\@usit.uio.no.  The code is:\n----\n".
@@ -494,16 +497,21 @@ die "w3mir: Ignore/Fetch rules did not compile.\nPlease report to w3mir-core\@us
 
 # - The user specified apply rules
 
+# $SIG{__WARN__} = sub { print "$_[0]\n"; confess ""; };
+
 my $full_apply=$apply_prefix.($lc?$apply_lc:'').
   join($ipost.";\n",@user_apply).(($#user_apply>=0)?$ipost:"").";\n".
   $apply_postfix;
+
 eval $full_apply;
+die "$@!" if $@;
 
 die "w3mir: User apply rules did not compile.\nPlease report to w3mir-core\@usit.uio.no. The code is:
 ----
 ".$full_apply."
 ----\n" if !defined($apply_code);
 
+# print "user apply: $full_apply\n";
 $user_apply_code=$apply_code;
 
 # - The w3mir generated apply rules
@@ -512,6 +520,7 @@ $full_apply=$apply_prefix.($lc?$apply_lc:'').
   join($ipost.";\n",@internal_apply).(($#internal_apply>=0)?$ipost:"").";\n".
   $apply_postfix;
 eval $full_apply;
+die "$@!" if $@;
 
 die "Internal apply rules did not compile.  The code is:
 ----
@@ -1239,6 +1248,7 @@ sub open_fixup {
     die "Could not open $reffile for writing: $!\n";
 
   $fixopen=1;
+
   open(REMOVED,"> $removedfile") ||
     die "Could not open $removedfile for writing: $!\n";
 
@@ -1758,16 +1768,16 @@ sub internal_apply {
 
 
 sub apply {
-  # Apply the user apply rules.  Then if URL is wanted return result of
-  # w3mir apply rules.  Return the undefined value otherwise.
+    # Apply the user apply rules.  Then if URL is wanted return result of
+    # w3mir apply rules.  Return the undefined value otherwise.
 
-  my $url = user_apply(shift);
+    my $url = user_apply(shift);
 
-  return internal_apply($url)
-    if want_this($url);
+    return internal_apply($url)
+	if want_this($url);
 
-  print REMOVED $url,"\n";
-  return undef;
+    # print REMOVED $url,"\n";
+    return undef;
 }
 
 
@@ -1814,11 +1824,11 @@ sub process_tag {
   foreach $key (@{$url_attrs}) {
     if (defined($$attrs{$key})) {
       $rum_url=$$attrs{$key};
-      printf STDERR "$key = $rum_url\n" if $debug;
+      print STDERR "$key = $rum_url\n" if $debug;
       $lf_url=apply($rum_url);
       if (defined($lf_url)) {
 
-	printf STDERR "Transformed to $lf_url\n" if $debug>2;
+	print STDERR "Transformed to $lf_url\n" if $debug>2;
 
 	$lf_url =~ s~^/~~;  # Remove leading / to avoid doubeling
 	$lf_url_o=url "file:/$lf_url";

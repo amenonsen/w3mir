@@ -1,7 +1,7 @@
 # -*- perl -*-
 # w3http.pm	--- send http requests, janl's 12" mix for w3mir
 #
-$VERSION=1.0.22;
+$VERSION=1.0.23;
 #
 # This implements http/1.0 requests.  We'll have problems with http/0.9
 # This is in no way specific to w3mir.
@@ -125,6 +125,7 @@ $VERSION=1.0.22;
 #     janl 13/04/99 -- Added workaround for broken win32 perl resolving.
 #     janl 15/01/00 -- Patch to adapt to URI 1.0 from Takuya Tsumura and
 #                      Andrey A. Chernov
+#     ams  02/02/01 -- Handle URLs with spaces better (use epath)
 
 package w3http;
 
@@ -301,7 +302,7 @@ sub query {
 	$query.='GET '.$req_o->as_string;
       } else {
 	$q=$req_o->equery;
-	$query.='GET '.$request.($q?"?$q":'');
+	$query.='GET '.($req_o->epath).($q?"?$q":'');
       }
       $query.=' HTTP/'.$version.$nl;
     } elsif ($arg == $HEADURL) {

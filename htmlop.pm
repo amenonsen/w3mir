@@ -1,6 +1,7 @@
 # -*-perl-*-
 # htmlop.pl: Do operations on html documents.
-$VERSION=0.2.4;
+package htmlop;
+$VERSION=0.2.6;
 #
 # Original source from Bjørn Borud, without it I would not have atempted
 # this. In this incarnation it bears no resemblance to Bjørns code.
@@ -61,6 +62,7 @@ $VERSION=0.2.4;
 # janl    13/04/99 - Remove leading /../ sequences in path component in
 #		     ABS code. -> 0.2.3
 # janl    28/05/99 - The code was buggy, now it's not. -> 0.2.4
+# janl    04/02/01 - Use epath instead of path -> 0.2.6
 
 package htmlop;
 
@@ -486,7 +488,9 @@ sub process {
 	      $url_o=url($attrval{$attr})->abs($origin,1);
 	      # Remove .. and . parts that old versions of URI module does
 	      # not handle
-	      if (defined($path=$url_o->path) && 
+#	      print "URL: ",$url_o->as_string,"\n";
+#	      print "PATH: ",$url_o->epath,"\n";
+	      if (defined($path=$url_o->epath) && 
 		  ($path =~ /\.\./ || $path =~ /\/\.$/)) {
 		# Trailing ..: /foo/bar/.. => /foo/
 		$path =~ s~[^/]*/\.\.$~~;
@@ -495,7 +499,7 @@ sub process {
 		# Trailing .: foo/. => foo/ 
 		$path =~ s~/\.~/~;
 		
-		$url_o->path($path);
+		$url_o->epath($path);
 	      }
 	      $attrval{$attr}=$url_o->as_string;
 	    }
