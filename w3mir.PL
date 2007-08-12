@@ -69,7 +69,6 @@ __END__
 #!/local/bin/perl5 -w
 # Perl 5.002 or later.  w3mir is mostly tested with perl 5.004
 #
-# You might want to change or comment out this:
 use lib '/hom/janl/lib/perl';
 #
 # Once upon a long time ago this was Oscar Nierstrasz's
@@ -237,6 +236,8 @@ use lib '/hom/janl/lib/perl';
 #   janl 21/11/98 -- Fix errormessages better.
 #   janl 05/01/99 -- Drop 'Referer: (commandline)'
 #   janl 13/04/99 -- Add initial referer to root urls in batch mode.
+#   janl 15/01/00 -- Remove some leftover print statements
+#                 -- Fix also-queue problem as suggested by Sven Koch
 #
 # Variable name discipline:
 # - remote, umodified URL.  Variables prefixed 'rum_'
@@ -276,6 +277,12 @@ use URI::URL;
 # For flush method
 use FileHandle;
 
+eval '
+use URI;
+$URI::ABS_ALLOW_RELATIVE_SCHEME=1;
+$URI::ABS_REMOTE_LEADING_DOTS=1;
+';
+
 # Full discipline:
 use strict;
 
@@ -307,6 +314,7 @@ my @root_dirs;			# The corresponding directories.  for remove
 my $chdirto='';			# Place to chdir to after reading config file
 my %nodelete=();		# Files that should not be deleted
 my $numarg=0;			# Number of arguments accepted.
+my $list_nomir=0;		# List of files not mirrored
 
 # Fixup related things
 my $fixrc='';			# Name of w3mfix config file
@@ -317,8 +325,8 @@ my $fixopen=0;			# Fixup files open?
 my $indexname='index.html';
 
 my $VERSION;
-$VERSION='1.0.8';
-$w3http::agent = my $w3mir_agent = "w3mir/$VERSION-1999-05-28";
+$VERSION='1.0.9';
+$w3http::agent = my $w3mir_agent = "w3mir/$VERSION-2000-01-15";
 my $iref='';			# Initial referer.  Must evaluate to false
 
 # Derived settings	
@@ -608,9 +616,9 @@ if ($runfix) {
   eval 'use Config;';
   warn "Running w3mfix\n";
   if ($win32) {
-    system($Config{'perlpath'}." w3mfix $fixrc");
+    CORE::system($Config{'perlpath'}." w3mfix $fixrc");
   } else {
-    system("w3mfix $fixrc");
+    CORE::system("w3mfix $fixrc");
   }
 }
 
@@ -1210,13 +1218,17 @@ sub open_fixup {
 
   my $reffile='.referers';
   my $redirfile='.redirs';
+  my $removedfile='.notmirrored';
 
   if ($win32) {
     $reffile="referers";
     $redirfile="redirs";
+    $removedfile="notmir";
   }
 
-  $nodelete{$reffile} = $nodelete{$redirfile} = 1;
+  $nodelete{$reffile} = $nodelete{$redirfile} = $nodelete{$removedfile} = 1;
+
+  $removedfile=$nulldevice unless $list_nomir;
 
   open(REDIRS,"> $redirfile") || 
     die "Could not open $redirfile for writing: $!\n";
@@ -1227,6 +1239,11 @@ sub open_fixup {
     die "Could not open $reffile for writing: $!\n";
 
   $fixopen=1;
+  open(REMOVED,"> $removedfile") ||
+    die "Could not open $removedfile for writing: $!\n";
+
+  autoflush REMOVED 1;
+
   eval 'END { close_fixup; 0; }';
 }
 
@@ -1245,6 +1262,7 @@ sub close_fixup {
 
   close(REFERERS) || warn "Error closing referers file: $!\n";
   close(REDIRS) || warn "Error closing redirects file: $!\n";
+  close(REMOVED) || warn "Error closing 'removed' file: $!\n";
   $fixopen=0;
 }
 
@@ -1500,7 +1518,7 @@ sub root_queue {
     push(@root_urls,$root_url_o->as_string); 
 
     return $root_url_o;
- }
+  }
 
 }
 
@@ -1745,9 +1763,11 @@ sub apply {
 
   my $url = user_apply(shift);
 
-  return undef unless want_this($url);
+  return internal_apply($url)
+    if want_this($url);
 
-  internal_apply($url);
+  print REMOVED $url,"\n";
+  return undef;
 }
 
 
@@ -2047,18 +2067,22 @@ sub parse_cfg_file {
 
     if ($key eq 'also' || $key eq 'also-queue') {
       if ($value =~ m/^(.+)\s+(.+)/i) {
-	my ($rum_url_o,$lf_dir,$rum_reurl,$rum_rebase);
+	my ($rum_url_o,$rum_url,$lf_dir,$rum_reurl,$rum_rebase);
 	# Two arguments.
 	# The last is a directory, it must end in /
 	# print STDERR "URL ",$1," DIR ",$2,"\n";
+	$rum_url=$1;
 	$lf_dir=$2;
 	$lf_dir.='/' unless $lf_dir =~ m~/$~;
+	die "w3mir: The target path in Also: and Also-queue: directives must ".
+	    "be relative\n"
+		if substr($lf_dir,0,1) eq '/';
 
 	if ($key eq 'also-queue') {
-	  $rum_url_o=root_queue($1,$lf_dir);
+	  $rum_url_o=root_queue($rum_url,$lf_dir);
 	} else {
 	  root_queue("",$lf_dir);
-	  $rum_url_o=url $1;
+	  $rum_url_o=url $rum_url;
 	  $rum_url_o->host(lc $rum_url_o->host);
 	}
 
@@ -2184,7 +2208,7 @@ sub parse_cfg_file {
 	if ($i==1) {
 	  $nval=nway($val,'recurse','no-date-check','only-nonexistent',
 		     'list-urls','lowercase','remove','batch','read-urls',
-		     'abs','no-newline-conv');
+		     'abs','no-newline-conv','list-nonmirrored');
 	  $r=1,next if $nval==0;
 	  $fetch=1,next if $nval==1;
 	  $fetch=-1,next if $nval==2;
@@ -2200,6 +2224,7 @@ sub parse_cfg_file {
 	  $read_urls=1,next if $nval==7;
 	  $abs=1,next if $nval==8;
 	  $convertnl=0,next if $nval==9;
+	  $list_nomir=1,next if $nval==10;
         } else {
 	    die "w3mir: options must be the first directive in the config file.\n";
 	}
@@ -2310,9 +2335,9 @@ sub insert_at_start {
   @_=@possible;
   
   while( $done!=1 && ($f=shift) ){
-    print "Searching for: $f\n";
+    # print "Searching for: $f\n";
     if( $$text_ref =~ /$f/i ){
-      print "found it!\n";
+      # print "found it!\n";
       $$text_ref =~ s/($f)/$1\n$str/i;
       $done=1;
     }
@@ -2331,6 +2356,11 @@ sub rm_rf {
 
   die "w3mir: Could not load File::Find module when trying to remove $remove\n"
     unless defined(&find);
+
+  die "w3mir: Removal safeguard triggered on '$remove'"
+    if $remove =~ m~/\.\./~ || $remove =~ m~/\.\.$~ || $remove =~ m~/\.$~;
+
+  die "rm_rf($remove); ";
 
   finddepth(\&remove_everything,$remove);
 
@@ -2705,7 +2735,7 @@ keywords are not case-sensitive, but the arguments I<might> be.
 
 =over 4
 
-=item Options: I<recurse> | I<no-date-check> | I<only-nonexistent> | I<list-urls> | I<lowercase> | I<remove> | I<batch> | I<input-urls> | I<no-newline-conv>
+=item Options: I<recurse> | I<no-date-check> | I<only-nonexistent> | I<list-urls> | I<lowercase> | I<remove> | I<batch> | I<input-urls> | I<no-newline-conv> | I<list-nonmirrored>
 
 This must be the first directive in a configuration file.  
 
@@ -2746,6 +2776,12 @@ see B<-I> option.
 =item I<no-newline-conv>
 
 see B<-nnc> option.
+
+=item I<list-nonmirrored>
+
+List URLs not mirrored in a file called .notmirrored ('notmir' on
+win32).  It will contain a lot of duplicate lines and quite possebly
+be quite large.
 
 =back
 

@@ -484,9 +484,17 @@ sub process {
 	    if (defined($attrval{$attr})) {
 	      # Ugly: Remove leading /../ sequences in path component
 	      $url_o=url($attrval{$attr})->abs($origin,1);
-	      if (defined($path=$url_o->path)) {
-		# mailto: URLs does not have path components
-		$path =~ s~/\.\.(?=/)~~g;
+	      # Remove .. and . parts that old versions of URI module does
+	      # not handle
+	      if (defined($path=$url_o->path) && 
+		  ($path =~ /\.\./ || $path =~ /\/\.$/)) {
+		# Trailing ..: /foo/bar/.. => /foo/
+		$path =~ s~[^/]*/\.\.$~~;
+		# Leading: /../../foo => /foo
+		$path =~ s~^/(\.\./)*~/~g;
+		# Trailing .: foo/. => foo/ 
+		$path =~ s~/\.~/~;
+		
 		$url_o->path($path);
 	      }
 	      $attrval{$attr}=$url_o->as_string;

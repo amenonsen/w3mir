@@ -66,10 +66,10 @@ sub read_makefile {
 }
 
 __END__
-#!/local/bin/perl5 -w
+#!/usr/bin/perl
+
 # Perl 5.002 or later.  w3mir is mostly tested with perl 5.004
 #
-# You might want to change or comment out this:
 use lib '/hom/janl/lib/perl';
 #
 # Can perform the following fixes:
@@ -113,10 +113,18 @@ use htmlop;
 use URI::URL;
 use URI::Escape;
 
+eval '
+# This is for URI 1.0 only
+use URI;
+# Make URI behave in a (more) sensible manner
+$URI::ABS_ALLOW_RELATIVE_SCHEME=1;
+$URI::ABS_REMOTE_LEADING_DOTS=1;
+';
+
 use strict;
 
 my $VERSION;
-$VERSION='0.6.5';
+$VERSION='0.6.6';
 
 my $debug=0;			# Not debugging
 my $verbose=0;
@@ -185,6 +193,8 @@ my %stat=();			# stat($lf_url): 'd' for dir, 'f' for others
 
 # ######################### Libwww-perl addons:
 
+# URI as part of libwww:
+
 sub URI::URL::_generic::unix_path {
   my $self = (shift)->clone;
 
@@ -206,17 +216,23 @@ sub URI::URL::_generic::basename {
 }
 
 
-sub URI::URL::_generic::path_components {
-    my $self = shift;
-    my $old = $self->{'path'};
-    $old = '' unless defined $old;
-    $old = "/$old" if $old !~ m|^/| && defined $self->{'netloc'};
-    if (@_) {
-	$self->_elem('path',
-		     join("/", map { uri_escape($_,$URI::URL::reserved)
-				   } @_));
-    }
-    map { uri_unescape($_) } split("/", $old, -1);
+# URI 1.0
+sub URI::URL::unix_path {
+  my $self = (shift)->clone;
+
+  return uri_unescape($self->path);
+}
+
+
+sub URI::_generic::basename {
+  my $self = shift;
+  my @p = $self->path_segments;
+  my $old = $p[-1];
+  if (@_) {
+    splice(@p, -1, 1, shift);
+    $self->path_segments(@p)
+  }
+  $old;
 }
 
 
@@ -970,6 +986,104 @@ die "Internal apply rules did not compile.  The code is:
 &edit_as_needed;
 
 exit 0;
+__END__
+# -*- perl -*-  There must be a blank line here:
+
+=head1 NAME
+
+w3mfix - fixup program for w3mir
+
+=head1 SYNOPSIS
+
+B<w3mfix> [B<options>] [B<configuration-file>]
+
+=head1 DESCRIPTION
+
+B<w3mfix> is the companion program to L<w3mir>.  It can be used for
+several URL editing operations usefull in different situations.  
+
+When starting B<w3mfix> will read it's configuration file.  It's name is 
+either .w3mirc (w3mir.ini on win32) or specified on the commandline.
+
+B<w3mfix> is controlled by the 'Fixup' directive of the configuration
+file (described in the L<w3mir> documentation).  B<w3mfix> is also
+affected by 'Index-name' and the one special commandline option it
+knows, as well as the directives/options controlling verbosity and
+debugging information.
+
+=head1 DESCRIPTION
+
+B<w3mfix> can rewrite URLs in these ways:
+
+=over 4
+
+=item * Rewrite URLs that resutled in redirects to point to the place
+redirected to.  This is needed in all cases and will always be fixed
+by B<w3mfix>.
+
+=item * Change URLs ending in .../ into .../index.html (or
+.../Welcome.html).  This is, probably, not needed when the mirror is
+meant do be used with a web-server.  It is usefull for browsing
+directly from disk or CDROM, but in this case it's, most often,
+required.  To disable this specify the I<noindex> option with the
+'Fixup' directive.
+
+The default is to transform URLs ending in .../ into .../index.html.
+
+To controll the name of the index file use the I<Index-name> directive
+as documented in L<w3mir>
+
+=item * Change URL links to documents outside the mirror to point to
+some local document.  Could be usefull if the mirror is destined for a
+CDROM to be used on a unconnected machine.
+
+THIS IS NOT YET IMPLEMENTED
+
+=item * Change URL links to documents that L<w3mir> was
+unable/forbidden to retrive to point to some local document.  Pointing
+these to a nice informative document is probably better than random
+error messages from the browser.
+
+THIS IS NOT YET IMPLEMENTED
+
+=item * And, least, but far from last, B<w3mfix> can be used to
+prepare an established mirror for enlargement.
+
+This feature is used thus: Add the new site or subsite to be mirrored
+on the configuration file (by adding B<Also:> and B<Also-quene:>
+directives).  Then run B<w3mfix> with the B<-editref> option.  When
+the B<-editref> option is specified B<w3mfix> will not perform any
+other editing tasks.
+
+E.g.; To add I<http://www.yahoo.com/Science/Artificial_Life/> to your
+mirror add something like
+
+	  Also: http://www.yahoo.com/Science/Artificial_Life/ yahoo
+
+to the configuration file, then run w3mfix:
+
+	  w3mfix -editref www.yahoo.com/Science/Artificial_Life
+
+This will cause all references to
+I<www.yahoo.com/Science/Artificial_Life> (and under) to be edited so they
+point to within the mirror.  After B<w3mfix> has finished you can run
+L<w3mir> in the normal manner.
+
+=back
+
+=head1 BUGS
+
+Naah.
+
+=head1 SEE ALSO
+
+L<w3mir>
+
+=head1 AUTHORS
+
+B<w3mir>s authors can be reached at I<w3mir-core@usit.uio.no>.
+B<w3mir>s home page is at http://www.math.uio.no/~janl/w3mir/
+
 __END__
 # -*- perl -*-  There must be a blank line here:
 

@@ -50,10 +50,10 @@ libwww seems to be missing.
 ';
   $missing_modules++;
   sleep(2);
-} elsif ($LWP::VERSION<5.08 or $LWP::VERSION>=5.40) {
+} elsif ($LWP::VERSION<5.08) {
   print ' failed
 
-libwww is version ',$LWP::VERSION,', I need version 5.08 to 5.39.
+libwww is version ',$LWP::VERSION,', I need version 5.08 or later
 Please see the INSTALL file.
 
 ';

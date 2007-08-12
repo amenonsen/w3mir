@@ -123,6 +123,8 @@ $VERSION=1.0.22;
 #                      running in forget-mode (-f)
 #     janl 05/01/99 -- Referer: dropped if argument not true -> 1.0.21
 #     janl 13/04/99 -- Added workaround for broken win32 perl resolving.
+#     janl 15/01/00 -- Patch to adapt to URI 1.0 from Takuya Tsumura and
+#                      Andrey A. Chernov
 
 package w3http;
 
@@ -140,6 +142,20 @@ sub URI::URL::_generic::basename {
   if (@_) {
     splice(@p, -1, 1, shift);
     $self->path_components(@p)
+  }
+  $old;
+}
+
+# The URI 1.0 library changed the internal organization a bit
+# Thanks to Andrey A. Chernov for the patch!
+
+sub URI::_generic::basename {
+  my $self = shift;
+  my @p = $self->path_segments;
+  my $old = $p[-1];
+  if (@_) {
+    splice(@p, -1, 1, shift);
+    $self->path_segments(@p)
   }
   $old;
 }
@@ -482,17 +498,19 @@ sub query {
     # Check if header is complete
     last if ($header =~ m/(\r?\n\r?\n)/);
   }
+
+  my $orighead = $header;
   
   if (length($header)==0) {
     $restext='the HTTP reply header is empty!';
     return &resetsign;
   }
-  
+
   if ($header =~ m/(\r?\n\r?\n)/) {
-    $header=$`;
-    $document=$';
-  } else {
-    $header=$document;
+    if ($`) {
+      $header=$`;
+      $document=$';
+    }
   }
   
   # Adjust accounting
@@ -504,6 +522,13 @@ sub query {
   # Pick headers to pieces
   ($result,$restext,%headval)=&analyze_header($header);
 
+  if (!$result) {
+    print "\n\nw3mir: BOGUS HTTP REPLY:\n-----\n$header\n-----\n";
+    print "\n\nw3mir: UNPROCESSED REPLY:\n-----\n$orighead\n-----\n";
+    print "\nw3mir: QUERY WAS:\n-----\n$query\n-----\n";
+    die;
+  }
+  
   print STDERR "REPLY:\n",$header,"\n---\n" if $debug>=2;
 
   # Check if the document is a non-encoded text document. The contents
@@ -515,7 +540,7 @@ sub query {
       !defined($headval{'content-encoding'});
   $plaintexthtml=$plaintext && 
     ($headval{'CONTENT-TYPE'} eq 'text/html');
-  
+
   if ($result==200) {
     
     # Save this to a file, or not?  Never save html files.

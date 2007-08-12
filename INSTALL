@@ -9,10 +9,9 @@ if they are not there, so if you are unsure what you have you might
 skip this part for now.
 
 - Get libwww-perl from CPAN 
-  (http://www.perl.com/CPAN/modules/by-module/WWW/).  W3mir does not work
-  with LWP 5.40 and later versions.  Please get an earlier version.
-  It also does not work with the new URI package.  Use the URI package
-  enclosed in the older LWP.
+  (http://www.perl.com/CPAN/modules/by-module/WWW/).  W3mir now works
+  with LWP 5.40 and later versions, but any version after 5.08 should
+  be ok (though perhaps buggy).
 
 - Unpack it:
 
@@ -54,6 +53,33 @@ skip this part for now.
     make install
 
   Now libwww-perl should be installed and working.
+
+- If you installed libwww-perl 5.40 or later you also need the URI
+  package (http://www.perl.com/CPAN-local/modules/by-module/URI/)
+
+- Unpack it:
+
+    gzip -dc URI-*.tar.gz | tar xvBf -
+
+- Install it:
+
+    cd URI-*
+
+  Then as above, either
+
+    perl Makefile.PL
+
+  or
+
+    perl Makefile.PL PREFIX=/some/dir
+
+  and then
+
+    make
+    make test
+    make install
+
+  Now URI should be installed and working.
 
 - You also have to get the MIME-Base64 package
   (http://www.perl.com/CPAN/modules/by-module/MIME/)
@@ -114,4 +140,4 @@ w3mir should now be installed correctly.  And if it's installed in
 your path you can even run it.  If you use csh or tcsh you want to run
 'rehash' before the shell will find it.
 
-1999/04/14 - Nicolai Langfeldt
+2000/01/15 - Nicolai Langfeldt

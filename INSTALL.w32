@@ -31,8 +31,7 @@ Caveats:
 + archive 1.0.6 from CPAN seems to be corrupted
 
 + &mkdir does not seem to work with dos-paths
-like 'D:/DIR1/DIR2'
-(so it is not possible to save to another harddisk)
+like 'D:/DIR1/DIR2' (so it is not possible to save to another harddisk)
 
 *********************************** GS Perl ***********************************
 
